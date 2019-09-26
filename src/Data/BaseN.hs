@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Data.BaseN (Base(..), baseNEncode) where
+module Data.BaseN (Base(..), encodeBaseN) where
 
 import Data.BaseN.Internal
 
-import Prelude hiding (concat)
+import Prelude hiding (concat, seq)
 
 import Data.Bits
 
@@ -14,7 +14,6 @@ import qualified Data.String as S
 --
 -- Type Classes / Data Types
 --
-
 
 data Base = Base2
 
@@ -30,22 +29,27 @@ base16Alphabet = ['0'..'9'] <> ['a'..'f']
 -- Functions
 --
 
-baseNEncode :: (ByteStringLike b, IsStringConcat s) => b -> Base -> s
-baseNEncode seq base = case base of
-  Base2 -> seq `base2NEncode` 2
+encodeBase2 :: (ByteStringLike b, S.IsString s, Concat s) => b -> s
+encodeBase2 = (`encodeBaseN` Base2)
+
+encodeBaseN :: (ByteStringLike b, S.IsString s, Concat s) => b -> Base -> s
+encodeBaseN seq base = case base of
+  Base2 -> seq `encodeBase2N` 2
 
 --
 -- Helper function
 --
 
-base2NEncode :: (ByteStringLike b, IsStringConcat s) => b -> Int -> s
-base2NEncode seq base = concat
-  [S.fromString [base2Alphabet L.!! val | val <- chunk] | chunk <- base2NEncode' seq base]
+encodeBase2N :: (ByteStringLike b, S.IsString s, Concat s) => b -> Int -> s
+encodeBase2N seq base = concat
+  [S.fromString [base2Alphabet L.!! val | val <- chunk] | chunk <- encodeBase2N' seq base]
 
-base2NEncode' :: (ByteStringLike b) => b -> Int -> [[Int]]
-base2NEncode' seq base = case uncons seq of
+encodeBase2N' :: (ByteStringLike b) => b -> Int -> [[Int]]
+encodeBase2N' seq base = case uncons seq of
   Just (h, seq') -> case base of
-    2 -> [if h `testBit` i then 1 else 0 | i <- [7,6..0] :: [Int]] : base2NEncode' seq' base
+    2 -> [if h `testBit` i then 1 else 0 | i <- [7,6..0] :: [Int]] : encodeBase2N' seq' base
     _ -> undefined
   Nothing        -> []
 
+decodeBase2N :: (S.IsString s, ByteStringLike b) => s -> Int -> b
+decodeBase2N = undefined

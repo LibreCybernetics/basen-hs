@@ -7,7 +7,6 @@ import Data.Word
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List       as L
-import qualified Data.String     as S
 import qualified Data.Text       as T
 
 --
@@ -15,37 +14,41 @@ import qualified Data.Text       as T
 --
 
 class ByteStringLike b where
+  null   :: b -> Bool
   uncons :: b -> Maybe (Word8, b)
   (!!)   :: Integral i => b -> i -> Maybe Word8
 
 instance ByteStringLike [Word8] where
+  null   = L.null
   uncons = L.uncons
   l !! i | i `boundedBy` L.length l = Just (l L.!! fromIntegral i)
          | otherwise = Nothing
 
 instance ByteStringLike BS.ByteString where
+  null   = BS.null
   uncons = BS.uncons
   bs !! i | i `boundedBy` BS.length bs = Just (bs `BS.index` fromIntegral i)
           | otherwise = Nothing
 
 instance ByteStringLike LBS.ByteString where
+  null   = LBS.null
   uncons = LBS.uncons
   bs !! i | i `boundedBy` LBS.length bs = Just(bs `LBS.index` fromIntegral i)
           | otherwise = Nothing
 
-class S.IsString s => IsStringConcat s where
+class Concat s where
   concat :: [s] -> s
 
-instance IsStringConcat String where
+instance Concat String where
   concat = L.concat
 
-instance IsStringConcat BS.ByteString where
+instance Concat BS.ByteString where
   concat = BS.concat
 
-instance IsStringConcat LBS.ByteString where
+instance Concat LBS.ByteString where
   concat = LBS.concat
 
-instance IsStringConcat T.Text where
+instance Concat T.Text where
   concat = T.concat
 
 --
