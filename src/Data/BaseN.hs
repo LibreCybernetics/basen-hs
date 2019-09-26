@@ -2,6 +2,8 @@
 
 module Data.BaseN (Base(..), baseNEncode) where
 
+import Prelude hiding (concat)
+
 import Data.Bits
 import Data.Word
 
@@ -9,6 +11,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List       as L
 import qualified Data.String     as S
+import qualified Data.Text       as T
 
 --
 -- Type Classes / Data Types
@@ -33,6 +36,21 @@ instance ByteStringLike LBS.ByteString where
   bs !! i | i `boundedBy` LBS.length bs = Just(bs `LBS.index` fromIntegral i)
           | otherwise = Nothing
 
+class S.IsString s => IsStringConcat s where
+  concat :: [s] -> s
+
+instance IsStringConcat String where
+  concat = L.concat
+
+instance IsStringConcat BS.ByteString where
+  concat = BS.concat
+
+instance IsStringConcat LBS.ByteString where
+  concat = LBS.concat
+
+instance IsStringConcat T.Text where
+  concat = T.concat
+
 data Base = Base2
 
 --
@@ -47,7 +65,7 @@ base16Alphabet = ['0'..'9'] <> ['a'..'f']
 -- Functions
 --
 
-baseNEncode :: (ByteStringLike b, S.IsString s) => b -> Base -> s
+baseNEncode :: (ByteStringLike b, IsStringConcat s) => b -> Base -> s
 baseNEncode seq base = case base of
   Base2 -> seq `base2NEncode` 2
 
@@ -55,9 +73,9 @@ baseNEncode seq base = case base of
 -- Helper function
 --
 
-base2NEncode :: (ByteStringLike b, S.IsString s) => b -> Int -> s
-base2NEncode seq base = S.fromString . concat $
-  [[base2Alphabet L.!! val | val <- chunk] | chunk <- base2NEncode' seq base]
+base2NEncode :: (ByteStringLike b, IsStringConcat s) => b -> Int -> s
+base2NEncode seq base = concat
+  [S.fromString [base2Alphabet L.!! val | val <- chunk] | chunk <- base2NEncode' seq base]
 
 base2NEncode' :: (ByteStringLike b) => b -> Int -> [[Int]]
 base2NEncode' seq base = case uncons seq of
