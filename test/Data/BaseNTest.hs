@@ -1,10 +1,17 @@
 module Data.BaseNTest where
 
 import Test.Tasty.Hspec
+import Test.Tasty.QuickCheck
+import Test.QuickCheck.Instances.ByteString ()
 
 import Data.BaseN
 
+import Data.ByteString
 import Data.Word
+
+--
+-- Specs
+--
 
 spec_examples :: Spec
 spec_examples = do
@@ -25,3 +32,14 @@ spec_examples = do
     testEnc2 [213,231] "1101010111100111"
   where
     testEnc2 i s = it (show i) $ encodeBase2 (i :: [Word8]) `shouldBe` s
+
+--
+-- Properties
+--
+
+prop_decodeBase2IsLeftInverseOfencodeBase2 :: ByteString -> Bool
+prop_decodeBase2IsLeftInverseOfencodeBase2 input =
+  decodeBase2 encoded == Right input
+  where
+    encoded :: String
+    encoded = encodeBase2 input
