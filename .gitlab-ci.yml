@@ -1,0 +1,27 @@
+# Taken from: https://gitlab.com/bitemyapp/haskell-continuous-integration/blob/master/.gitlab-ci.yml
+
+default:
+  image: fpco/stack-build:lts-14.7
+
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  cache:
+    key: "master"
+    paths:
+      - .stack-work/
+  script:
+    - stack --no-terminal build
+
+test:
+  stage: test
+  cache:
+    key: "master"
+    paths:
+      - .stack-work/
+  script:
+    - stack --no-terminal test --coverage
+
