@@ -1,3 +1,8 @@
 .stack-work/
+dist/
+
 *.cabal
+
+*.#*
 *~
+
