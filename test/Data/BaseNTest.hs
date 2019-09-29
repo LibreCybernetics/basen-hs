@@ -1,7 +1,6 @@
 module Data.BaseNTest where
 
 import Test.Tasty.Hspec
-import Test.Tasty.QuickCheck
 import Test.QuickCheck.Instances.ByteString ()
 
 import Data.BaseN
@@ -22,7 +21,7 @@ spec_examples = do
     it "Malformed Base2" $ do
       decodeBase2 "0" `shouldBe` (Left (WrongLength 7) :: Either DecodeError [Word8])
       decodeBase2 "000011110000" `shouldBe`(Left (WrongLength 4) :: Either DecodeError [Word8])
-      decodeBase2 "01234567" `shouldBe` (Left UnkownAlphabet :: Either DecodeError [Word8])
+      decodeBase2 "01234567" `shouldBe` (Left UnknownAlphabet :: Either DecodeError [Word8])
   describe "Base2 Spec" $ do
     testEnc2 [0] "00000000"
     testEnc2 [1] "00000001"

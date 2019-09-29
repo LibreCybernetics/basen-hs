@@ -1,0 +1,20 @@
+- extensions:
+  - default: True
+  - name: [OverlodadedIntegers, OverloadedStrings] # only these listed extensions can be used
+
+- modules:
+  - {name: [Data.ByteString],      as: BS}
+  - {name: [Data.ByteString.Lazy], as: LBS}
+  - {name: [Data.String],          as: S}
+  - {name: [Data.Text],            as: T}
+  - {name: [Data.Text.Lazy],       as: LT}
+
+# Extra warnings
+
+- warn:  {name: Use explicit module export list}
+- group: {name: dollar,     enabled: true}
+- group: {name: generalise, enabled: true}
+
+# Disabled warnings
+
+- ignore: {name: Use String}

@@ -8,73 +8,107 @@ import Prelude hiding (drop, length, take)
 
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.List   as L
-import qualified Data.String as S
-import qualified Data.Text   as T
+import qualified Data.List            as L
+import qualified Data.String          as S
+import qualified Data.Text            as T
+import qualified Data.Text.Lazy       as LT
 
 --
 -- Type Classes
 --
 
+-- SeqLike
+
+class SeqLike s where
+  empty  :: s
+  null   :: s -> Bool
+  length :: s -> Int
+  drop   :: Int -> s -> s
+  take   :: Int -> s -> s
+  concat :: [s] -> s
+
+instance SeqLike [e] where
+  empty  = []
+  null   = L.null
+  length = L.length
+  drop   = L.drop
+  take   = L.take
+  concat = L.concat
+
+instance SeqLike BS.ByteString where
+  empty  = BS.empty
+  null   = BS.null
+  length = BS.length
+  drop   = BS.drop
+  take   = BS.take
+  concat = BS.concat
+
+instance SeqLike LBS.ByteString where
+  empty  = LBS.empty
+  null   = LBS.null
+  length = fromIntegral . LBS.length
+  drop   = LBS.drop . fromIntegral
+  take   = LBS.take . fromIntegral
+  concat = LBS.concat
+
+instance SeqLike T.Text where
+  empty  = T.empty
+  null   = T.null
+  length = T.length
+  drop   = T.drop
+  take   = T.take
+  concat = T.concat
+
+instance SeqLike LT.Text where
+  empty  = LT.empty
+  null   = LT.null
+  length = fromIntegral . LT.length
+  drop   = LT.drop . fromIntegral
+  take   = LT.take . fromIntegral
+  concat = LT.concat
+
 -- ByteStringLike
 
-class ByteStringLike b where
+class SeqLike b => ByteStringLike b where
   cons   :: Word8 -> b -> b
-  empty  :: b
-  null   :: b -> Bool
   uncons :: b -> Maybe (Word8, b)
-  (!!)   :: Integral i => b -> i -> Maybe Word8
+  (!!)   :: b -> Int -> Maybe Word8
 
 instance ByteStringLike [Word8] where
   cons   = (:)
-  empty  = []
-  null   = L.null
   uncons = L.uncons
   l !! i | i `boundedBy` L.length l = Just (l L.!! fromIntegral i)
          | otherwise = Nothing
 
 instance ByteStringLike BS.ByteString where
   cons   = BS.cons
-  empty  = BS.empty
-  null   = BS.null
   uncons = BS.uncons
   bs !! i | i `boundedBy` BS.length bs = Just (bs `BS.index` fromIntegral i)
           | otherwise = Nothing
 
 instance ByteStringLike LBS.ByteString where
   cons   = LBS.cons
-  empty  = LBS.empty
-  null   = LBS.null
   uncons = LBS.uncons
   bs !! i | i `boundedBy` LBS.length bs = Just(bs `LBS.index` fromIntegral i)
           | otherwise = Nothing
 
 --  StringLike
 
-class S.IsString s => StringLike s where
-  concat   :: [s] -> s
-  drop     :: Int -> s -> s
-  length   :: s -> Int
-  take     :: Int -> s -> s
+class (SeqLike s, S.IsString s) => StringLike s where
   toString :: s -> String
 
 instance StringLike String where
-  concat   = L.concat
-  drop     = L.drop
-  length   = L.length
-  take     = L.take
   toString = id
 
 instance StringLike T.Text where
-  concat   = T.concat
-  drop     = T.drop
-  length   = T.length
-  take     = T.take
   toString = T.unpack
 
 --
--- Helper Functions
+-- Helper Functions (Not exported as part of the package)
 --
+
+attemptSum :: [Maybe Int] -> Maybe Word8
+attemptSum l = fromIntegral . sum <$> sequence l
 
 -- | Bounded between 0 and a given i. [0, i)
 boundedBy :: (Integral idx, Integral len) => idx -> len -> Bool
@@ -86,6 +120,9 @@ s `inChunksOf` n | length s > n = take n s : (drop n s `inChunksOf` n)
                  | length s > 0 = [s]
                  | otherwise    = []
 
+
+positionValue :: Int -> [Char] -> (Char, Int) -> Maybe Int
+positionValue base baseAlphabet (v, e) = (* base^e) <$> L.elemIndex v baseAlphabet
 
 -- Taken from: https://github.com/pmlodawski/error-util
 -- License: MIT
