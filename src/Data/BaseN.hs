@@ -11,9 +11,10 @@ module Data.BaseN (
 
 import Data.BaseN.Internal
 
-import Prelude hiding (concat, length, seq, tail, take)
+import Prelude hiding (concat, drop, length, seq, tail, take, (!!))
 
 import Data.Bits
+import Data.Maybe
 
 import qualified Data.List   as L
 import qualified Data.String as S
@@ -22,8 +23,9 @@ import qualified Data.String as S
 -- Type Classes / Data Types
 --
 
-data Base = Base2 | Base8 | Base10 | Base16 Casing deriving (Eq, Show)
-data Casing = LowerCase | UpperCase deriving (Eq, Show)
+data Base = Base2 | Base8  Padding | Base10 | Base16 Casing Padding deriving (Eq, Show)
+data Casing  = LowerCase | UpperCase deriving (Eq, Show)
+data Padding = NoPadding | WithPadding deriving (Eq, Show)
 data DecodeError = UnknownAlphabet | WrongLength Int deriving (Eq, Show)
 
 --
@@ -50,10 +52,10 @@ decodeBase2 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
 decodeBase2 = (`decodeBaseN` Base2)
 
 encodeBase8 :: (ByteStringLike b, StringLike s) => b -> s
-encodeBase8 = (`encodeBaseN` Base8)
+encodeBase8 = (`encodeBaseN` Base8 WithPadding)
 
 decodeBase8 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
-decodeBase8 = (`decodeBaseN` Base2)
+decodeBase8 = (`decodeBaseN` Base8 WithPadding)
 
 encodeBase10 :: (ByteStringLike b, StringLike s) => b -> s
 encodeBase10 = (`encodeBaseN` Base10)
@@ -62,10 +64,10 @@ decodeBase10 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
 decodeBase10 = (`decodeBaseN` Base10)
 
 encodeBase16 :: (ByteStringLike b, StringLike s) => b -> s
-encodeBase16 = (`encodeBaseN` Base8)
+encodeBase16 = (`encodeBaseN` Base16 LowerCase WithPadding)
 
 decodeBase16 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
-decodeBase16 = (`decodeBaseN` Base2)
+decodeBase16 = (`decodeBaseN` Base16 LowerCase WithPadding)
 
 --
 -- Main Functions
@@ -73,30 +75,49 @@ decodeBase16 = (`decodeBaseN` Base2)
 
 encodeBaseN :: (ByteStringLike b, StringLike s) => b -> Base -> s
 encodeBaseN seq base = case base of
-  Base2  -> seq `encodeBase2N` 2
-  Base8  -> seq `encodeBase2N` 8
-  Base10 -> undefined
-  Base16 c -> seq `encodeBase2N` 16
+  Base2      -> seq `encodeBase2N` 2
+  Base8 p    -> seq `encodeBase2N` 8
+  Base10     -> undefined
+  Base16 c p -> seq `encodeBase2N` 16
 
 decodeBaseN :: (StringLike s, ByteStringLike b) => s -> Base -> Either DecodeError b
 decodeBaseN seq base = case base of
-  Base2  -> seq `decodeBase2N` 2
-  Base8  -> seq `decodeBase2N` 8
-  Base10 -> undefined
-  Base16 c -> seq `decodeBase2N` 16
+  Base2      -> seq `decodeBase2N` 2
+  Base8 p    -> seq `decodeBase2N` 8
+  Base10     -> undefined
+  Base16 c p -> seq `decodeBase2N` 16
 
 --
 -- Helper function
 --
 
 encodeBase2N :: (ByteStringLike b, StringLike s) => b -> Int -> s
-encodeBase2N seq base = concat
-  [S.fromString [base2Alphabet L.!! val | val <- chunk] | chunk <- encodeBase2N' seq base]
+encodeBase2N seq base = case base of
+  2  -> result base2Alphabet
+  8  -> result base8Alphabet
+  16 -> result base16Alphabet
+  _  -> undefined
+  where
+    result alphabet = concat [S.fromString [alphabet L.!! val | val <- chunk] | chunk <- encodeBase2N' seq base]
 
 encodeBase2N' :: (ByteStringLike b) => b -> Int -> [[Int]]
 encodeBase2N' seq base = case uncons seq of
   Just (h, seq') -> case base of
     2 -> [if h `testBit` i then 1 else 0 | i <- [7,6..0] :: [Int]] : encodeBase2N' seq' base
+    8 -> (fromIntegral <$> catMaybes [slice 0 <$> (seq !! 0),
+                                      slice 3 <$> (seq !! 0),
+                                      if ((`testBit` 0) <$> (seq !! 1)) `contains` True
+                                      then (1 +) . (2 *) . slice 6 <$> (seq !! 0)
+                                      else         (2 *) . slice 6 <$> (seq !! 0),
+                                      slice 1 <$> (seq !! 1),
+                                      slice 4 <$> (seq !! 1),
+                                      if ((`testBit` 7) <$> (seq !! 1)) `contains` True
+                                      then (4 +) . (`shiftR` 6) <$> (seq !! 2)
+                                      else         (`shiftR` 6) <$> (seq !! 2),
+                                      slice 2 <$> (seq !! 2),
+                                      slice 5 <$> (seq !! 2)
+                                     ]) : encodeBase2N' (drop 3 seq) base
+                         where slice i = (`shiftR` max 5 i) . (`shiftL` i)
     _ -> undefined
   Nothing        -> []
 

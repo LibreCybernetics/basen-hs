@@ -3,8 +3,9 @@
 module Data.BaseN.Internal where
 
 import Data.Word
+import Data.Maybe
 
-import Prelude hiding (drop, length, take)
+import Prelude hiding (drop, length, null, take)
 
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LBS
@@ -117,7 +118,7 @@ idx `boundedBy` len = 0 <= idx' && idx' < len
 
 inChunksOf :: StringLike s => s -> Int -> [s]
 s `inChunksOf` n | length s > n = take n s : (drop n s `inChunksOf` n)
-                 | length s > 0 = [s]
+                 | not (null s) = [s]
                  | otherwise    = []
 
 
@@ -129,3 +130,8 @@ positionValue base baseAlphabet (v, e) = (* base^e) <$> L.elemIndex v baseAlphab
 infixl 4 <?>
 (<?>) :: Maybe b -> a -> Either a b
 val <?> m = maybe (Left m) Right val
+
+contains :: (Eq a) => Maybe a -> a -> Bool
+contains m v = case m of
+  Just v' -> v' == v
+  Nothing -> False
