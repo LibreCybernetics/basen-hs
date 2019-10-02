@@ -13,8 +13,10 @@ import Data.BaseN.Internal
 
 import Prelude hiding (concat, drop, length, seq, tail, take, (!!))
 
+import Control.Applicative hiding (empty)
 import Data.Bits
 import Data.Maybe
+import Data.Word
 
 import qualified Data.List   as L
 import qualified Data.String as S
@@ -25,12 +27,15 @@ import qualified Data.String as S
 
 data Base = Base2 | Base8  Padding | Base10 | Base16 Casing Padding deriving (Eq, Show)
 data Casing  = LowerCase | UpperCase deriving (Eq, Show)
-data Padding = NoPadding | WithPadding deriving (Eq, Show)
+data Padding = NoPadding | WithPadding Char deriving (Eq, Show)
 data DecodeError = UnknownAlphabet | WrongLength Int deriving (Eq, Show)
 
 --
 -- Constants
 --
+
+defaultPadding :: Padding
+defaultPadding = WithPadding '='
 
 base2Alphabet  :: [Char]
 base2Alphabet  = ['0', '1']
@@ -52,10 +57,10 @@ decodeBase2 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
 decodeBase2 = (`decodeBaseN` Base2)
 
 encodeBase8 :: (ByteStringLike b, StringLike s) => b -> s
-encodeBase8 = (`encodeBaseN` Base8 WithPadding)
+encodeBase8 = (`encodeBaseN` Base8 defaultPadding)
 
 decodeBase8 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
-decodeBase8 = (`decodeBaseN` Base8 WithPadding)
+decodeBase8 = (`decodeBaseN` Base8 defaultPadding)
 
 encodeBase10 :: (ByteStringLike b, StringLike s) => b -> s
 encodeBase10 = (`encodeBaseN` Base10)
@@ -64,10 +69,10 @@ decodeBase10 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
 decodeBase10 = (`decodeBaseN` Base10)
 
 encodeBase16 :: (ByteStringLike b, StringLike s) => b -> s
-encodeBase16 = (`encodeBaseN` Base16 LowerCase WithPadding)
+encodeBase16 = (`encodeBaseN` Base16 LowerCase defaultPadding)
 
 decodeBase16 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
-decodeBase16 = (`decodeBaseN` Base16 LowerCase WithPadding)
+decodeBase16 = (`decodeBaseN` Base16 LowerCase defaultPadding)
 
 --
 -- Main Functions
@@ -98,35 +103,43 @@ encodeBase2N seq base = case base of
   16 -> result base16Alphabet
   _  -> undefined
   where
-    result alphabet = concat [S.fromString [alphabet L.!! val | val <- chunk] | chunk <- encodeBase2N' seq base]
+    result alphabet = concat [S.fromString [alphabet L.!! min val 7 | val <- chunk] | chunk <- encodeBase2N' seq base]
 
 encodeBase2N' :: (ByteStringLike b) => b -> Int -> [[Int]]
 encodeBase2N' seq base = case uncons seq of
   Just (h, seq') -> case base of
     2 -> [if h `testBit` i then 1 else 0 | i <- [7,6..0] :: [Int]] : encodeBase2N' seq' base
-    8 -> (fromIntegral <$> catMaybes [slice 0 <$> (seq !! 0),
-                                      slice 3 <$> (seq !! 0),
-                                      if ((`testBit` 0) <$> (seq !! 1)) `contains` True
-                                      then (1 +) . (2 *) . slice 6 <$> (seq !! 0)
-                                      else         (2 *) . slice 6 <$> (seq !! 0),
-                                      slice 1 <$> (seq !! 1),
-                                      slice 4 <$> (seq !! 1),
+    -- | Base8 Encoding; This code is hacky and should be refactored.
+    8 -> (fromIntegral <$> catMaybes [slice 5 8 <$> (seq !! 0),
+                                      slice 2 5 <$> (seq !! 0),
                                       if ((`testBit` 7) <$> (seq !! 1)) `contains` True
-                                      then (4 +) . (`shiftR` 6) <$> (seq !! 2)
-                                      else         (`shiftR` 6) <$> (seq !! 2),
-                                      slice 2 <$> (seq !! 2),
-                                      slice 5 <$> (seq !! 2)
+                                      then (1 +) . (2 *) . slice 0 2 <$> (seq !! 0)
+                                      else         (2 *) . slice 0 2 <$> (seq !! 0),
+                                      slice 4 7 <$> (seq !! 1),
+                                      slice 1 4 <$> (seq !! 1),
+                                      if ((`testBit` 0) <$> (seq !! 1)) `contains` True
+                                      then (4 +) . slice 6 8 <$> ((seq !! 2) <|> Just 0)
+                                      else if isJust $ seq !! 1
+                                      then slice 6 8 <$> ((seq !! 2) <|> Just 0)
+                                      else Nothing,
+                                      slice 3 6 <$> (seq !! 2),
+                                      slice 0 3 <$> (seq !! 2)
                                      ]) : encodeBase2N' (drop 3 seq) base
-                         where slice i = (`shiftR` max 5 i) . (`shiftL` i)
+                         where
+                           slice :: Word8 -> Word8 -> Word8 -> Word8
+                           slice a b i = (`shiftR` fromIntegral a) $ ((2^b) - (2^a) :: Word8) .&. i
     _ -> undefined
   Nothing        -> []
 
 decodeBase2N :: (StringLike s, ByteStringLike b) => s -> Int -> Either DecodeError b
 decodeBase2N seq base = case base of
-  2 | lenDivBy 8 -> decodeBase2N' (seq `inChunksOf` 8) 2
-    | otherwise  -> Left . WrongLength $ 8 - (length seq `mod` 8)
+  2 | lenCongBy 8 [0] -> decodeBase2N' (seq `inChunksOf` 8) 2
+    | otherwise -> Left . WrongLength $ 8 - (length seq `mod` 8)
+  8 | lenCongBy 8 [0, 3, 6] -> decodeBase2N' (seq `inChunksOf` 8) 8
+    -- | More hacky code that needs refactoring
+    | otherwise -> Left . WrongLength . foldr min 3 . filter (>0) $ ((\x -> x - (length seq `mod` 8)) <$> [3, 6, 8])
   _ -> undefined
-  where lenDivBy d = length seq `rem` d == 0
+  where lenCongBy d cong = (length seq `mod` d) `L.elem` cong
 
 decodeBase2N' :: (StringLike s, ByteStringLike b) => [s] -> Int -> Either DecodeError b
 decodeBase2N' []      _    = Right empty
