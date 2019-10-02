@@ -11,7 +11,7 @@ module Data.BaseN (
 
 import Data.BaseN.Internal
 
-import Prelude hiding (concat, drop, length, seq, tail, take, (!!))
+import Prelude hiding (concat, drop, length, seq, tail, take, takeWhile, (!!))
 
 import Control.Applicative hiding (empty)
 import Data.Bits
@@ -127,7 +127,7 @@ encodeBase2N' seq base = case uncons seq of
                                      ]) : encodeBase2N' (drop 3 seq) base
                          where
                            slice :: Word8 -> Word8 -> Word8 -> Word8
-                           slice a b i = (`shiftR` fromIntegral a) $ ((2^b) - (2^a) :: Word8) .&. i
+                           slice a b i = (`shiftR` fromIntegral a) $ ((2^b) - (2^a)) .&. i
     _ -> undefined
   Nothing        -> []
 
@@ -136,7 +136,6 @@ decodeBase2N seq base = case base of
   2 | lenCongBy 8 [0] -> decodeBase2N' (seq `inChunksOf` 8) 2
     | otherwise -> Left . WrongLength $ 8 - (length seq `mod` 8)
   8 | lenCongBy 8 [0, 3, 6] -> decodeBase2N' (seq `inChunksOf` 8) 8
-    -- | More hacky code that needs refactoring
     | otherwise -> Left . WrongLength . foldr min 3 . filter (>0) $ ((\x -> x - (length seq `mod` 8)) <$> [3, 6, 8])
   _ -> undefined
   where lenCongBy d cong = (length seq `mod` d) `L.elem` cong
@@ -145,7 +144,27 @@ decodeBase2N' :: (StringLike s, ByteStringLike b) => [s] -> Int -> Either Decode
 decodeBase2N' []      _    = Right empty
 decodeBase2N' (cnk:t) base = case base of
   2 -> do
-    val  <- attemptSum [positionValue base base2Alphabet vals | vals <- zip (toString cnk) [7,6..0]] <?> UnknownAlphabet
+    val  <- attemptSum [positionValue 2 base2Alphabet vals | vals <- zip (toString cnk) [7,6..0]] <?> UnknownAlphabet
     tail <- decodeBase2N' t base
-    Right $ cons val tail
+    Right $ cons (fromIntegral val) tail
+  8 -> case t of
+    _ | length cnk' == 8 -> do
+           byte1' <- fromIntegral <$> byte1 <?> UnknownAlphabet
+           byte2' <- fromIntegral <$> byte2 <?> UnknownAlphabet
+           byte3' <- fromIntegral <$> byte3 <?> UnknownAlphabet
+           t' <- decodeBase2N' t 8
+           Right . (byte1' `cons`) . (byte2' `cons`) . (byte3' `cons`) $ t'
+    [] | length cnk' == 6 -> do
+           byte1' <- fromIntegral <$> byte1 <?> UnknownAlphabet
+           byte2' <- fromIntegral <$> byte2 <?> UnknownAlphabet
+           Right . (byte1' `cons`) . (byte2' `cons`) $ empty
+    [] | length cnk' == 3 -> do
+           byte1' <- fromIntegral <$> byte1 <?> UnknownAlphabet
+           Right . (byte1' `cons`) $ empty
+    _ -> Left UnknownAlphabet
+    where
+      cnk'  = takeWhile (/= '=') cnk
+      byte1 = (`shiftR` 1) <$> attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 3          $ cnk') [2,1,0]]
+      byte2 = (`shiftR` 2) <$> attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 4 . drop 2 $ cnk') [3,2..0]]
+      byte3 =                  attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 3 . drop 5 $ cnk') [2,1,0]]
   _ -> undefined

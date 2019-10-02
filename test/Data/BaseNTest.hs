@@ -7,6 +7,7 @@ import Data.BaseN
 
 import Data.ByteString
 import Data.Word
+import Data.Text
 
 --
 -- Specs
@@ -27,7 +28,7 @@ spec_examples = do
     it "Malformed Base8" $ do
       decodeBase8 "0" `shouldBe` (Left (WrongLength 2) :: Result)
       decodeBase8 "0123456701234" `shouldBe` (Left (WrongLength 1) :: Result)
-      decodeBase8 "012345678" `shouldBe` (Left UnknownAlphabet :: Result)
+      decodeBase8 "01234567890" `shouldBe` (Left UnknownAlphabet :: Result)
   describe "Base2 Spec" $ do
     testEnc2 [0] "00000000"
     testEnc2 [1] "00000001"
@@ -51,12 +52,15 @@ spec_examples = do
 -- Properties
 --
 
-prop_decodeBase2IsLeftInverseOfencodeBase2 :: ByteString -> Bool
-prop_decodeBase2IsLeftInverseOfencodeBase2 input =
-  decodeBase2 encoded == Right input
+prop_decodeBase2IsLeftInverseOfencode :: ByteString -> Bool
+prop_decodeBase2IsLeftInverseOfencode input =
+  decodeBase2 encBase2 == Right input &&
+  decodeBase8 encBase8 == Right input
   where
-    encoded :: String
-    encoded = encodeBase2 input
+    encBase2 :: Text
+    encBase2 = encodeBase2 input
+    encBase8 :: Text
+    encBase8 = encodeBase8 input
 
 --
 -- Helpers

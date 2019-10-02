@@ -96,19 +96,26 @@ instance ByteStringLike LBS.ByteString where
 --  StringLike
 
 class (SeqLike s, S.IsString s) => StringLike s where
-  toString :: s -> String
+  takeWhile :: (Char -> Bool) -> s -> s
+  toString  :: s -> String
 
 instance StringLike String where
-  toString = id
+  takeWhile = L.takeWhile
+  toString  = id
 
 instance StringLike T.Text where
-  toString = T.unpack
+  takeWhile = T.takeWhile
+  toString  = T.unpack
+
+instance StringLike LT.Text where
+  takeWhile = LT.takeWhile
+  toString  = LT.unpack
 
 --
 -- Helper Functions (Not exported as part of the package)
 --
 
-attemptSum :: [Maybe Int] -> Maybe Word8
+attemptSum :: [Maybe Int] -> Maybe Word16
 attemptSum l = fromIntegral . sum <$> sequence l
 
 -- | Bounded between 0 and a given i. [0, i)
