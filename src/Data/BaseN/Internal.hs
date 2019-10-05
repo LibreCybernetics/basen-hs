@@ -74,42 +74,46 @@ class SeqLike b => ByteStringLike b where
   cons   :: Word8 -> b -> b
   uncons :: b -> Maybe (Word8, b)
   (!!)   :: b -> Int -> Maybe Word8
+  takeWhileW :: (Word8 -> Bool) -> b -> b
 
 instance ByteStringLike [Word8] where
   cons   = (:)
   uncons = L.uncons
   l !! i | i `boundedBy` L.length l = Just (l L.!! fromIntegral i)
          | otherwise = Nothing
+  takeWhileW = L.takeWhile
 
 instance ByteStringLike BS.ByteString where
   cons   = BS.cons
   uncons = BS.uncons
   bs !! i | i `boundedBy` BS.length bs = Just (bs `BS.index` fromIntegral i)
           | otherwise = Nothing
+  takeWhileW = BS.takeWhile
 
 instance ByteStringLike LBS.ByteString where
   cons   = LBS.cons
   uncons = LBS.uncons
   bs !! i | i `boundedBy` LBS.length bs = Just(bs `LBS.index` fromIntegral i)
           | otherwise = Nothing
+  takeWhileW = LBS.takeWhile
 
 --  StringLike
 
 class (SeqLike s, S.IsString s) => StringLike s where
-  takeWhile :: (Char -> Bool) -> s -> s
-  toString  :: s -> String
+  takeWhileC :: (Char -> Bool) -> s -> s
+  toString   :: s -> String
 
 instance StringLike String where
-  takeWhile = L.takeWhile
-  toString  = id
+  takeWhileC = L.takeWhile
+  toString   = id
 
 instance StringLike T.Text where
-  takeWhile = T.takeWhile
-  toString  = T.unpack
+  takeWhileC = T.takeWhile
+  toString   = T.unpack
 
 instance StringLike LT.Text where
-  takeWhile = LT.takeWhile
-  toString  = LT.unpack
+  takeWhileC = LT.takeWhile
+  toString   = LT.unpack
 
 --
 -- Helper Functions (Not exported as part of the package)

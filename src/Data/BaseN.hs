@@ -172,7 +172,7 @@ decodeBase2N' (cnk:t) base = case base of
            Right . (byte1' `cons`) $ empty
     _ -> Left UnknownAlphabet
     where
-      cnk'  = takeWhile (/= '=') cnk
+      cnk'  = takeWhileC (/= '=') cnk
       byte1 = (`shiftR` 1) <$> attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 3          $ cnk') [2,1,0]]
       byte2 = (`shiftR` 2) <$> attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 4 . drop 2 $ cnk') [3,2..0]]
       byte3 =                  attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 3 . drop 5 $ cnk') [2,1,0]]
@@ -181,18 +181,26 @@ decodeBase2N' (cnk:t) base = case base of
 -- Other encodings (those not of a 2^n base) shouldn't be used for data since they are _very_ inefficient.
 
 encodeOtherBase :: (ByteStringLike b, StringLike s) => b -> Int -> [Char] -> s
-encodeOtherBase seq base alphabet | null seq  = empty
-                                  | otherwise =
-                                    S.fromString [alphabet L.!! fromIntegral ((totalValue seq `div` base'^(i+1)) `rem` base'^i) | i <- [largestPower,(largestPower-1)..0]]
+encodeOtherBase seq base alphabet = case uncons seq of
+  Nothing -> empty
+  Just _  -> S.fromString $ padding <> [alphabet L.!! fromIntegral ((totalValue seq `div` base'^i) `rem` base') | i <- range]
   where
     base' :: Integer
     base' = fromIntegral base
     totalValue :: (ByteStringLike b) => b -> Integer
     totalValue bs = case uncons bs of
       Nothing     -> 0
-      Just (h, t) -> fromIntegral h * (2 ^ length t) + totalValue t
-    largestPower :: Integer
-    largestPower = ceiling (logBase (fromIntegral . totalValue $ seq) (fromIntegral base) :: Double)
+      Just (h, t) -> (fromIntegral h * (256 ^ length t)) + totalValue t
+    largestPower :: Int
+    largestPower = case totalValue seq of
+      0 -> 0
+      _ -> floor $ logBase (fromIntegral base) (fromIntegral $ totalValue seq)
+    range :: [Int]
+    range = case largestPower of
+      0 -> [0]
+      _ -> [largestPower,(largestPower-1)..0]
+    padding :: [Char]
+    padding = drop 1 $ replicate (length . takeWhileW (== 0) $ seq) '0'
 
 decodeOtherBase :: (StringLike s, ByteStringLike b) => s -> Int -> [Char] -> Either DecodeError b
 decodeOtherBase seq base alphabet | null seq  = Right empty

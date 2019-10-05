@@ -46,12 +46,20 @@ spec_examples = do
     testEnc8 [0,0] "000000"
     testEnc8 [213, 231] "653634"
     testEnc8 [0, 10, 20, 30, 40, 50] "0000502407424062"
+  describe "Base10 Spec" $ do
+    testEnc10 [0] "0"
+    testEnc10 [1] "1"
+    testEnc10 [10] "10"
+    testEnc10 [123] "123"
+    testEnc10 [0,0] "00"
+    testEnc10 [213,231] "54759"
   where
     goodEnc c b t   = c (b :: [Word8]) `shouldBe` t
     goodDec c t b   = c t `shouldBe` (Right b :: Result)
     badDec  c t err = c t `shouldBe` (Left err :: Result)
-    testEnc2 = testEncGen encodeBase2
-    testEnc8 = testEncGen encodeBase8
+    testEnc2  = testEncGen encodeBase2
+    testEnc8  = testEncGen encodeBase8
+    testEnc10 = testEncGen encodeBase10
     testEncGen enc i s = it (show i) $ enc (i :: [Word8]) `shouldBe` s
 
 --

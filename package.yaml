@@ -1,8 +1,12 @@
 name:    basen
-version: 0.1.0.0
-github:  "LibreCybernetics/basen-hs"
-license: OtherLicense
-author:  LibreCybernetics
+version: 0.2.0.0
+
+author:   LibreCybernetics
+homepage: https://gitlab.com/LibreCybernetics/lib/basen-hs
+license:  OtherLicense
+license-file:
+- LICENSE-PARITY
+- LICENSE-PROSPERITY
 
 extra-source-files:
 - README.md
@@ -20,10 +24,16 @@ dependencies:
 ghc-options:
 - -Wall
 
-extensions: OverloadedIntegers OverloadedStrings
+extensions:
+- OverloadedIntegers
+- OverloadedStrings
 
 library:
   source-dirs: src
+  exposed-modules:
+  - Data.BaseN
+  other-modules:
+  - Data.BaseN.Internal 
 
 executables:
   basen-app:
