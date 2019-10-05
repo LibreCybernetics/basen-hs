@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module Data.BaseN (
-  Base(..), Casing(..), DecodeError(..),
-  encodeBaseN,  decodeBaseN,
-  encodeBase2,  decodeBase2,
+  Base(..), Casing(..), DecodeError(..), Padding(..), -- Useful Data Types
+  encodeBaseN,  decodeBaseN, -- Generic Encode/Decode
+  encodeBase2,  decodeBase2, -- Aliases
   encodeBase8,  decodeBase8,
   encodeBase10, decodeBase10,
   encodeBase16, decodeBase16
@@ -11,7 +11,7 @@ module Data.BaseN (
 
 import Data.BaseN.Internal
 
-import Prelude hiding (concat, drop, length, seq, tail, take, takeWhile, (!!))
+import Prelude hiding (concat, drop, length, null, seq, tail, take, takeWhile, (!!))
 
 import Control.Applicative hiding (empty)
 import Data.Bits
@@ -25,17 +25,24 @@ import qualified Data.String as S
 -- Type Classes / Data Types
 --
 
-data Base = Base2 | Base8  Padding | Base10 | Base16 Casing Padding deriving (Eq, Show)
-data Casing  = LowerCase | UpperCase deriving (Eq, Show)
-data Padding = NoPadding | WithPadding Char deriving (Eq, Show)
+-- | Available Base Codecs
+data Base        = Base2 | Base8  Padding | Base10 |
+                   Base16 Casing Padding             deriving (Eq, Show)
+-- | Casing Option if applicable
+data Casing      = LowerCase | UpperCase             deriving (Eq, Show)
+-- | Padding Option if applicable
+data Padding     = NoPadding | WithPadding Char      deriving (Eq, Show)
+-- | Decode Error (Unknown Char in encoded text or ambiguous length)
 data DecodeError = UnknownAlphabet | WrongLength Int deriving (Eq, Show)
 
 --
 -- Constants
 --
 
+-- | If not provided, use `=` as the default padding option
 defaultPadding :: Padding
 defaultPadding = WithPadding '='
+
 
 base2Alphabet  :: [Char]
 base2Alphabet  = ['0', '1']
@@ -82,19 +89,21 @@ encodeBaseN :: (ByteStringLike b, StringLike s) => b -> Base -> s
 encodeBaseN seq base = case base of
   Base2      -> seq `encodeBase2N` 2
   Base8 p    -> seq `encodeBase2N` 8
-  Base10     -> undefined
+  Base10     -> encodeOtherBase seq 10 base10Alphabet
   Base16 c p -> seq `encodeBase2N` 16
 
 decodeBaseN :: (StringLike s, ByteStringLike b) => s -> Base -> Either DecodeError b
 decodeBaseN seq base = case base of
   Base2      -> seq `decodeBase2N` 2
   Base8 p    -> seq `decodeBase2N` 8
-  Base10     -> undefined
+  Base10     -> decodeOtherBase seq 10 base10Alphabet
   Base16 c p -> seq `decodeBase2N` 16
 
 --
--- Helper function
+-- Helper functions
 --
+
+-- Encoding/Decoding 2^n bases is done is a `map` fashion since it is natural to the representation of data
 
 encodeBase2N :: (ByteStringLike b, StringLike s) => b -> Int -> s
 encodeBase2N seq base = case base of
@@ -168,3 +177,23 @@ decodeBase2N' (cnk:t) base = case base of
       byte2 = (`shiftR` 2) <$> attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 4 . drop 2 $ cnk') [3,2..0]]
       byte3 =                  attemptSum [positionValue 8 base8Alphabet vals | vals <- zip (toString . take 3 . drop 5 $ cnk') [2,1,0]]
   _ -> undefined
+
+-- Other encodings (those not of a 2^n base) shouldn't be used for data since they are _very_ inefficient.
+
+encodeOtherBase :: (ByteStringLike b, StringLike s) => b -> Int -> [Char] -> s
+encodeOtherBase seq base alphabet | null seq  = empty
+                                  | otherwise =
+                                    S.fromString [alphabet L.!! fromIntegral ((totalValue seq `div` base'^(i+1)) `rem` base'^i) | i <- [largestPower,(largestPower-1)..0]]
+  where
+    base' :: Integer
+    base' = fromIntegral base
+    totalValue :: (ByteStringLike b) => b -> Integer
+    totalValue bs = case uncons bs of
+      Nothing     -> 0
+      Just (h, t) -> fromIntegral h * (2 ^ length t) + totalValue t
+    largestPower :: Integer
+    largestPower = ceiling (logBase (fromIntegral . totalValue $ seq) (fromIntegral base) :: Double)
+
+decodeOtherBase :: (StringLike s, ByteStringLike b) => s -> Int -> [Char] -> Either DecodeError b
+decodeOtherBase seq base alphabet | null seq  = Right empty
+                                  | otherwise = undefined

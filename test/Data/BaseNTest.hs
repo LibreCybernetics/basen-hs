@@ -17,10 +17,12 @@ spec_examples :: Spec
 spec_examples = do
   describe "Edge Cases" $ do
     it "Empty" $ do
-      goodEnc encodeBase2 [] ""
-      goodEnc encodeBase8 [] ""
-      goodDec decodeBase2 "" []
-      goodDec decodeBase8 "" []
+      goodEnc encodeBase2  [] ""
+      goodEnc encodeBase8  [] ""
+      goodEnc encodeBase10 [] ""
+      goodDec decodeBase2  "" []
+      goodDec decodeBase8  "" []
+      goodDec decodeBase10 "" []
     it "Malformed Base2" $ do
       badDec decodeBase2 "0" $ WrongLength 7
       badDec decodeBase2 "000011110000" $ WrongLength 4
