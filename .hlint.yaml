@@ -18,3 +18,4 @@
 # Disabled warnings
 
 - ignore: {name: Use String}
+- ignore: {name: Use head}

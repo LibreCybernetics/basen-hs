@@ -3,7 +3,7 @@ version: 0.2.0.0
 
 author:   LibreCybernetics
 homepage: https://gitlab.com/LibreCybernetics/lib/basen-hs
-license:  OtherLicense
+license: "LicenseRef-Partiy-6.0.0"
 license-file:
 - LICENSE-PARITY
 - LICENSE-PROSPERITY
@@ -23,10 +23,6 @@ dependencies:
 
 ghc-options:
 - -Wall
-
-extensions:
-- OverloadedIntegers
-- OverloadedStrings
 
 library:
   source-dirs: src

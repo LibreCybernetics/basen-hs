@@ -72,12 +72,14 @@ instance SeqLike LT.Text where
 
 class SeqLike b => ByteStringLike b where
   cons   :: Word8 -> b -> b
+  pack   :: [Word8] -> b
   uncons :: b -> Maybe (Word8, b)
   (!!)   :: b -> Int -> Maybe Word8
   takeWhileW :: (Word8 -> Bool) -> b -> b
 
 instance ByteStringLike [Word8] where
   cons   = (:)
+  pack   = id
   uncons = L.uncons
   l !! i | i `boundedBy` L.length l = Just (l L.!! fromIntegral i)
          | otherwise = Nothing
@@ -85,6 +87,7 @@ instance ByteStringLike [Word8] where
 
 instance ByteStringLike BS.ByteString where
   cons   = BS.cons
+  pack   = BS.pack
   uncons = BS.uncons
   bs !! i | i `boundedBy` BS.length bs = Just (bs `BS.index` fromIntegral i)
           | otherwise = Nothing
@@ -92,6 +95,7 @@ instance ByteStringLike BS.ByteString where
 
 instance ByteStringLike LBS.ByteString where
   cons   = LBS.cons
+  pack   = LBS.pack
   uncons = LBS.uncons
   bs !! i | i `boundedBy` LBS.length bs = Just(bs `LBS.index` fromIntegral i)
           | otherwise = Nothing

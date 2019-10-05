@@ -204,4 +204,6 @@ encodeOtherBase seq base alphabet = case uncons seq of
 
 decodeOtherBase :: (StringLike s, ByteStringLike b) => s -> Int -> [Char] -> Either DecodeError b
 decodeOtherBase seq base alphabet | null seq  = Right empty
-                                  | otherwise = undefined
+                                  | otherwise = Right unpadding
+  where
+    unpadding = pack $ replicate (length . takeWhileC (=='0') $ seq) 0
