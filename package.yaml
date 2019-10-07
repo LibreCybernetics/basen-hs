@@ -3,7 +3,7 @@ version: 0.2.0.0
 
 author:   LibreCybernetics
 homepage: https://gitlab.com/LibreCybernetics/lib/basen-hs
-license: "LicenseRef-Partiy-6.0.0"
+license: OtherLicense
 license-file:
 - LICENSE-PARITY
 - LICENSE-PROSPERITY
@@ -29,23 +29,16 @@ library:
   exposed-modules:
   - Data.BaseN
   other-modules:
-  - Data.BaseN.Internal 
-
-executables:
-  basen-app:
-    main:        Main.hs
-    source-dirs: app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - basen
+  - Data.BaseN.Internal
 
 tests:
   basen-test:
     main:        TestSuite.hs
     source-dirs: test
+    exposed-modules:
+    - Data.BaseNTest
+    other-modules:
+    - TestSuite
     ghc-options:
     - -threaded
     - -rtsopts
