@@ -26,12 +26,13 @@ import qualified Data.String as S
 --
 
 -- | Available Base Codecs
-data Base        = Base2 | Base8  Padding | Base10 |
-                   Base16 Casing Padding             deriving (Eq, Show)
+data Base        = Base2 | Base8  Padding | Base10 | Base16 Casing | Base32 Casing Padding
+                 | Base58 deriving (Eq, Show)
 -- | Casing Option if applicable
-data Casing      = LowerCase | UpperCase             deriving (Eq, Show)
+data Casing      = LowerCase | UpperCase        deriving (Eq, Show)
 -- | Padding Option if applicable
-data Padding     = NoPadding | WithPadding Char      deriving (Eq, Show)
+data Padding     = NoPadding | WithPadding Char deriving (Eq, Show)
+
 -- | Decode Error (Unknown Char in encoded text or ambiguous length)
 data DecodeError = UnknownAlphabet | WrongLength Int deriving (Eq, Show)
 
@@ -52,6 +53,16 @@ base10Alphabet :: [Char]
 base10Alphabet = ['0'..'9']
 base16Alphabet :: [Char]
 base16Alphabet = ['0'..'9'] <> ['a'..'f']
+base16AlphabetUpper :: [Char]
+base16AlphabetUpper = ['0'..'9'] <> ['A'..'F']
+-- RFC 4648 Base32 alphabet
+base32Alphabet :: [Char]
+base32Alphabet = ['A'..'Z'] <> ['2'..'9']
+base32AlphabetLower :: [Char]
+base32AlphabetLower = ['a'..'z'] <> ['2'..'9']
+-- Bitcoin Base58
+base58Alphabet :: [Char]
+base58Alphabet = undefined
 
 --
 -- Alias Functions
@@ -76,10 +87,11 @@ decodeBase10 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
 decodeBase10 = (`decodeBaseN` Base10)
 
 encodeBase16 :: (ByteStringLike b, StringLike s) => b -> s
-encodeBase16 = (`encodeBaseN` Base16 LowerCase defaultPadding)
+encodeBase16 = (`encodeBaseN` Base16 LowerCase)
 
+-- This will first attempt to decode a lowercase string and fallback to an uppercase string
 decodeBase16 :: (StringLike s, ByteStringLike b) => s -> Either DecodeError b
-decodeBase16 = (`decodeBaseN` Base16 LowerCase defaultPadding)
+decodeBase16 = (`decodeBaseN` Base16 LowerCase) <> (`decodeBaseN` Base16 UpperCase)
 
 --
 -- Main Functions
@@ -87,17 +99,21 @@ decodeBase16 = (`decodeBaseN` Base16 LowerCase defaultPadding)
 
 encodeBaseN :: (ByteStringLike b, StringLike s) => b -> Base -> s
 encodeBaseN seq base = case base of
-  Base2      -> seq `encodeBase2N` 2
-  Base8 p    -> seq `encodeBase2N` 8
-  Base10     -> encodeOtherBase seq 10 base10Alphabet
-  Base16 c p -> seq `encodeBase2N` 16
+  Base2   -> seq `encodeBase2N` Base2
+  Base8 p -> seq `encodeBase2N` Base8 p
+  Base10 -> encodeOtherBase seq 10 base10Alphabet
+  Base16 c   -> seq `encodeBase2N` Base16 c
+  Base32 c p -> seq `encodeBase2N` Base32 c p
+  Base58 -> encodeOtherBase seq 58 base58Alphabet
 
 decodeBaseN :: (StringLike s, ByteStringLike b) => s -> Base -> Either DecodeError b
 decodeBaseN seq base = case base of
-  Base2      -> seq `decodeBase2N` 2
-  Base8 p    -> seq `decodeBase2N` 8
-  Base10     -> decodeOtherBase seq 10 base10Alphabet
-  Base16 c p -> seq `decodeBase2N` 16
+  Base2   -> seq `decodeBase2N` Base2
+  Base8 p -> seq `decodeBase2N` Base8 p
+  Base10 -> decodeOtherBase seq 10 base10Alphabet
+  Base16 c   -> seq `decodeBase2N` Base16 c
+  Base32 c p -> seq `decodeBase2N` Base32 c p
+  Base58 -> decodeOtherBase seq 58 base58Alphabet
 
 --
 -- Helper functions
@@ -105,14 +121,15 @@ decodeBaseN seq base = case base of
 
 -- Encoding/Decoding 2^n bases is done is a `map` fashion since it is natural to the representation of data
 
-encodeBase2N :: (ByteStringLike b, StringLike s) => b -> Int -> s
+encodeBase2N :: (ByteStringLike b, StringLike s) => b -> Base -> s
 encodeBase2N seq base = case base of
-  2  -> result base2Alphabet
-  8  -> result base8Alphabet
-  16 -> result base16Alphabet
+  Base2   -> result 2 base2Alphabet
+  Base8 p -> result 8 base8Alphabet
+  Base16 LowerCase -> result 16 base16Alphabet
+  Base16 UpperCase -> result 16 base16AlphabetUpper
   _  -> undefined
   where
-    result alphabet = concat [S.fromString [alphabet L.!! min val 7 | val <- chunk] | chunk <- encodeBase2N' seq base]
+    result baseValue alphabet = concat [S.fromString [alphabet L.!! min val 7 | val <- chunk] | chunk <- encodeBase2N' seq baseValue]
 
 encodeBase2N' :: (ByteStringLike b) => b -> Int -> [[Int]]
 encodeBase2N' seq base = case uncons seq of
@@ -140,12 +157,12 @@ encodeBase2N' seq base = case uncons seq of
     _ -> undefined
   Nothing        -> []
 
-decodeBase2N :: (StringLike s, ByteStringLike b) => s -> Int -> Either DecodeError b
+decodeBase2N :: (StringLike s, ByteStringLike b) => s -> Base -> Either DecodeError b
 decodeBase2N seq base = case base of
-  2 | lenCongBy 8 [0] -> decodeBase2N' (seq `inChunksOf` 8) 2
-    | otherwise -> Left . WrongLength $ 8 - (length seq `mod` 8)
-  8 | lenCongBy 8 [0, 3, 6] -> decodeBase2N' (seq `inChunksOf` 8) 8
-    | otherwise -> Left . WrongLength . foldr min 3 . filter (>0) $ ((\x -> x - (length seq `mod` 8)) <$> [3, 6, 8])
+  Base2   | lenCongBy 8 [0] -> decodeBase2N' (seq `inChunksOf` 8) 2
+          | otherwise -> Left . WrongLength $ 8 - (length seq `mod` 8)
+  Base8 p | lenCongBy 8 [0, 3, 6] -> decodeBase2N' (seq `inChunksOf` 8) 8
+          | otherwise -> Left . WrongLength . foldr min 3 . filter (>0) $ ((\x -> x - (length seq `mod` 8)) <$> [3, 6, 8])
   _ -> undefined
   where lenCongBy d cong = (length seq `mod` d) `L.elem` cong
 
@@ -183,24 +200,26 @@ decodeBase2N' (cnk:t) base = case base of
 encodeOtherBase :: (ByteStringLike b, StringLike s) => b -> Int -> [Char] -> s
 encodeOtherBase seq base alphabet = case uncons seq of
   Nothing -> empty
-  Just _  -> S.fromString $ padding <> [alphabet L.!! fromIntegral ((totalValue seq `div` base'^i) `rem` base') | i <- range]
+  Just _  -> S.fromString $ padding <> [alphabet L.!! fromIntegral ((totalValue seq' `div` base'^i) `rem` base') | i <- range]
   where
     base' :: Integer
     base' = fromIntegral base
+    seq' = dropWhileW (== 0) seq
     totalValue :: (ByteStringLike b) => b -> Integer
     totalValue bs = case uncons bs of
       Nothing     -> 0
       Just (h, t) -> (fromIntegral h * (256 ^ length t)) + totalValue t
     largestPower :: Int
-    largestPower = case totalValue seq of
-      0 -> 0
-      _ -> floor $ logBase (fromIntegral base) (fromIntegral $ totalValue seq)
+    largestPower = case totalValue seq' of
+      0 -> -1 -- Magic number, signals value o since log(0) is undefined
+      _ -> floor $ logBase (fromIntegral base) (fromIntegral $ totalValue seq')
     range :: [Int]
     range = case largestPower of
-      0 -> [0]
-      _ -> [largestPower,(largestPower-1)..0]
+      -1 -> []
+      0  -> [0]
+      i | i > 0 -> [largestPower,(largestPower-1)..0]
     padding :: [Char]
-    padding = drop 1 $ replicate (length . takeWhileW (== 0) $ seq) '0'
+    padding = replicate (length . takeWhileW (== 0) $ seq) '0'
 
 decodeOtherBase :: (StringLike s, ByteStringLike b) => s -> Int -> [Char] -> Either DecodeError b
 decodeOtherBase seq base alphabet | null seq  = Right empty

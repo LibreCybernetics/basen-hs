@@ -1,5 +1,5 @@
 name:    basen
-version: 0.2.0.0
+version: 0.2.1.0
 
 author:   LibreCybernetics
 homepage: https://gitlab.com/LibreCybernetics/lib/basen-hs
@@ -35,10 +35,6 @@ tests:
   basen-test:
     main:        TestSuite.hs
     source-dirs: test
-    exposed-modules:
-    - Data.BaseNTest
-    other-modules:
-    - TestSuite
     ghc-options:
     - -threaded
     - -rtsopts

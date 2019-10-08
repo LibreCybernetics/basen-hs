@@ -75,22 +75,25 @@ class SeqLike b => ByteStringLike b where
   pack   :: [Word8] -> b
   uncons :: b -> Maybe (Word8, b)
   (!!)   :: b -> Int -> Maybe Word8
+  dropWhileW :: (Word8 -> Bool) -> b -> b
   takeWhileW :: (Word8 -> Bool) -> b -> b
 
 instance ByteStringLike [Word8] where
   cons   = (:)
   pack   = id
   uncons = L.uncons
-  l !! i | i `boundedBy` L.length l = Just (l L.!! fromIntegral i)
+  l !! i | i `boundedBy` L.length l = Just (l L.!! i)
          | otherwise = Nothing
+  dropWhileW = L.dropWhile
   takeWhileW = L.takeWhile
 
 instance ByteStringLike BS.ByteString where
   cons   = BS.cons
   pack   = BS.pack
   uncons = BS.uncons
-  bs !! i | i `boundedBy` BS.length bs = Just (bs `BS.index` fromIntegral i)
+  bs !! i | i `boundedBy` BS.length bs = Just (bs `BS.index` i)
           | otherwise = Nothing
+  dropWhileW = BS.dropWhile
   takeWhileW = BS.takeWhile
 
 instance ByteStringLike LBS.ByteString where
@@ -99,25 +102,30 @@ instance ByteStringLike LBS.ByteString where
   uncons = LBS.uncons
   bs !! i | i `boundedBy` LBS.length bs = Just(bs `LBS.index` fromIntegral i)
           | otherwise = Nothing
+  dropWhileW = LBS.dropWhile
   takeWhileW = LBS.takeWhile
 
 --  StringLike
 
 class (SeqLike s, S.IsString s) => StringLike s where
-  takeWhileC :: (Char -> Bool) -> s -> s
   toString   :: s -> String
+  dropWhileC :: (Char -> Bool) -> s -> s
+  takeWhileC :: (Char -> Bool) -> s -> s
 
 instance StringLike String where
-  takeWhileC = L.takeWhile
   toString   = id
+  dropWhileC = L.dropWhile
+  takeWhileC = L.takeWhile
 
 instance StringLike T.Text where
-  takeWhileC = T.takeWhile
   toString   = T.unpack
+  dropWhileC = T.dropWhile
+  takeWhileC = T.takeWhile
 
 instance StringLike LT.Text where
-  takeWhileC = LT.takeWhile
   toString   = LT.unpack
+  dropWhileC = LT.dropWhile
+  takeWhileC = LT.takeWhile
 
 --
 -- Helper Functions (Not exported as part of the package)
@@ -130,6 +138,11 @@ attemptSum l = fromIntegral . sum <$> sequence l
 boundedBy :: (Integral idx, Integral len) => idx -> len -> Bool
 idx `boundedBy` len = 0 <= idx' && idx' < len
   where idx' = fromIntegral idx
+
+contains :: (Eq a) => Maybe a -> a -> Bool
+contains m v = case m of
+  Just v' -> v' == v
+  Nothing -> False
 
 inChunksOf :: StringLike s => s -> Int -> [s]
 s `inChunksOf` n | length s > n = take n s : (drop n s `inChunksOf` n)
@@ -145,8 +158,3 @@ positionValue base baseAlphabet (v, e) = (* base^e) <$> L.elemIndex v baseAlphab
 infixl 4 <?>
 (<?>) :: Maybe b -> a -> Either a b
 val <?> m = maybe (Left m) Right val
-
-contains :: (Eq a) => Maybe a -> a -> Bool
-contains m v = case m of
-  Just v' -> v' == v
-  Nothing -> False
